@@ -1,0 +1,17 @@
+# Start message
+startup_message off
+
+# # Set hardstatus always on
+hardstatus alwayslastline " %-Lw%{= Bw}%n%f %t%{-}%+Lw %=| %M %d %0c:%s "
+
+# # Set default encoding using utf8
+defutf8 on
+
+# # Refresh the display when exiting programs
+altscreen on
+
+# # Dynamic title
+shelltitle '$ |bash'
+
+# # Disable vbell
+vbell off
