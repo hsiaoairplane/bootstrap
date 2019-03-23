@@ -1,0 +1,21 @@
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+x509_extensions = v3_ca # The extentions to add to the self signed cert
+
+[dn]
+countryName = TW
+stateOrProvinceName = Taiwan
+localityName = <city>
+organizationName = <ORG>
+organizationUnitName = <OU>
+commonName = <dns>
+emailAddress = <email-address>
+
+[v3_ca]
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+basicConstraints = CA:TRUE
+subjectAltName = DNS:<dns1>, DNS:<dns2>, ...
