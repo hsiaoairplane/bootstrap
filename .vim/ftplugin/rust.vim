@@ -1,199 +1,472 @@
-" Language:     Rust
-" Description:  Vim ftplugin for Rust
-" Maintainer:   Chris Morgan <me@chrismorgan.info>
-" Maintainer:   Kevin Ballard <kevin@sb.org>
-" Last Change:  June 08, 2016
-" For bugs, patches and license go to https://github.com/rust-lang/rust.vim 
+" vim-bootstrap 
 
-if exists("b:did_ftplugin")
-    finish
+"*****************************************************************************
+"" Vim-PLug core
+"*****************************************************************************
+let vimplug_exists=expand('~/.vim/autoload/plug.vim')
+
+let g:vim_bootstrap_langs = ""
+let g:vim_bootstrap_editor = "vim"				" nvim or vim
+
+if !filereadable(vimplug_exists)
+  if !executable("curl")
+    echoerr "You have to install curl or first install vim-plug yourself!"
+    execute "q!"
+  endif
+  echo "Installing Vim-Plug..."
+  echo ""
+  silent exec "!\curl -fLo " . vimplug_exists . " --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim"
+  let g:not_finish_vimplug = "yes"
+
+  autocmd VimEnter * PlugInstall
 endif
-let b:did_ftplugin = 1
 
-" vint: -ProhibitAbbreviationOption
-let s:save_cpo = &cpo
-set cpo&vim
-" vint: +ProhibitAbbreviationOption
+" Required:
+call plug#begin(expand('~/.vim/plugged'))
 
-augroup rust.vim
-    autocmd!
+"*****************************************************************************
+"" Plug install packages
+"*****************************************************************************
+Plug 'scrooloose/nerdtree'
+Plug 'jistr/vim-nerdtree-tabs'
+Plug 'tpope/vim-commentary'
+Plug 'tpope/vim-fugitive'
+Plug 'vim-airline/vim-airline'
+Plug 'vim-airline/vim-airline-themes'
+Plug 'airblade/vim-gitgutter'
+Plug 'vim-scripts/grep.vim'
+Plug 'vim-scripts/CSApprox'
+Plug 'Raimondi/delimitMate'
+Plug 'majutsushi/tagbar'
+Plug 'w0rp/ale'
+Plug 'Yggdroot/indentLine'
+Plug 'avelino/vim-bootstrap-updater'
+Plug 'sheerun/vim-polyglot'
+Plug 'tpope/vim-rhubarb' " required by fugitive to :Gbrowse
 
-    if get(b:, 'current_compiler', '') ==# ''
-        if strlen(findfile('Cargo.toml', '.;')) > 0
-            compiler cargo
-        else
-            compiler rustc
-        endif
+if isdirectory('/usr/local/opt/fzf')
+  Plug '/usr/local/opt/fzf' | Plug 'junegunn/fzf.vim'
+else
+  Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --bin' }
+  Plug 'junegunn/fzf.vim'
+endif
+let g:make = 'gmake'
+if exists('make')
+        let g:make = 'make'
+endif
+Plug 'Shougo/vimproc.vim', {'do': g:make}
+
+"" Vim-Session
+Plug 'xolox/vim-misc'
+Plug 'xolox/vim-session'
+
+"" Snippets
+Plug 'SirVer/ultisnips'
+Plug 'honza/vim-snippets'
+
+"" Color
+Plug 'tomasr/molokai'
+
+"*****************************************************************************
+"" Custom bundles
+"*****************************************************************************
+
+"*****************************************************************************
+"*****************************************************************************
+
+"" Include user's extra bundle
+if filereadable(expand("~/.vimrc.local.bundles"))
+  source ~/.vimrc.local.bundles
+endif
+
+call plug#end()
+
+" Required:
+filetype plugin indent on
+
+
+"*****************************************************************************
+"" Basic Setup
+"*****************************************************************************"
+"" Encoding
+set encoding=utf-8
+set fileencoding=utf-8
+set fileencodings=utf-8
+set ttyfast
+
+"" Fix backspace indent
+set backspace=indent,eol,start
+
+"" Tabs. May be overridden by autocmd rules
+set tabstop=4
+set softtabstop=0
+set shiftwidth=4
+set expandtab
+
+"" Map leader to ,
+let mapleader=','
+
+"" Enable hidden buffers
+set hidden
+
+"" Searching
+set hlsearch
+set incsearch
+set ignorecase
+set smartcase
+
+set fileformats=unix,dos,mac
+
+if exists('$SHELL')
+    set shell=$SHELL
+else
+    set shell=/bin/sh
+endif
+
+" session management
+let g:session_directory = "~/.vim/session"
+let g:session_autoload = "no"
+let g:session_autosave = "no"
+let g:session_command_aliases = 1
+
+"*****************************************************************************
+"" Visual Settings
+"*****************************************************************************
+syntax on
+set ruler
+set number
+
+let no_buffers_menu=1
+silent! colorscheme molokai
+
+set mousemodel=popup
+set t_Co=256
+set guioptions=egmrti
+set gfn=Monospace\ 10
+
+if has("gui_running")
+  if has("gui_mac") || has("gui_macvim")
+    set guifont=Menlo:h12
+    set transparency=7
+  endif
+else
+  let g:CSApprox_loaded = 1
+
+  " IndentLine
+  let g:indentLine_enabled = 1
+  let g:indentLine_concealcursor = 0
+  let g:indentLine_char = '┆'
+  let g:indentLine_faster = 1
+
+  
+  if $COLORTERM == 'gnome-terminal'
+    set term=gnome-256color
+  else
+    if $TERM == 'xterm'
+      set term=xterm-256color
     endif
+  endif
+  
+endif
 
-    " Variables {{{1
 
-    " The rust source code at present seems to typically omit a leader on /*!
-    " comments, so we'll use that as our default, but make it easy to switch.
-    " This does not affect indentation at all (I tested it with and without
-    " leader), merely whether a leader is inserted by default or not.
-    if get(g:, 'rust_bang_comment_leader', 0)
-        " Why is the `,s0:/*,mb:\ ,ex:*/` there, you ask? I don't understand why,
-        " but without it, */ gets indented one space even if there were no
-        " leaders. I'm fairly sure that's a Vim bug.
-        setlocal comments=s1:/*,mb:*,ex:*/,s0:/*,mb:\ ,ex:*/,:///,://!,://
-    else
-        setlocal comments=s0:/*!,m:\ ,ex:*/,s1:/*,mb:*,ex:*/,:///,://!,://
-    endif
-    setlocal commentstring=//%s
-    setlocal formatoptions-=t formatoptions+=croqnl
-    " j was only added in 7.3.541, so stop complaints about its nonexistence
-    silent! setlocal formatoptions+=j
+if &term =~ '256color'
+  set t_ut=
+endif
 
-    " smartindent will be overridden by indentexpr if filetype indent is on, but
-    " otherwise it's better than nothing.
-    setlocal smartindent nocindent
 
-    if get(g:, 'rust_recommended_style', 1)
-        let b:rust_set_style = 1
-        setlocal tabstop=8 shiftwidth=4 softtabstop=4 expandtab
-        setlocal textwidth=99
-    endif
+"" Disable the blinking cursor.
+set gcr=a:blinkon0
+set scrolloff=3
 
-    " This includeexpr isn't perfect, but it's a good start
-    setlocal includeexpr=substitute(v:fname,'::','/','g')
+"" Status bar
+set laststatus=2
 
-    setlocal suffixesadd=.rs
+"" Use modeline overrides
+set modeline
+set modelines=10
 
-    if exists("g:ftplugin_rust_source_path")
-        let &l:path=g:ftplugin_rust_source_path . ',' . &l:path
-    endif
+set title
+set titleold="Terminal"
+set titlestring=%F
 
-    if exists("g:loaded_delimitMate")
-        if exists("b:delimitMate_excluded_regions")
-            let b:rust_original_delimitMate_excluded_regions = b:delimitMate_excluded_regions
-        endif
+set statusline=%F%m%r%h%w%=(%{&ff}/%Y)\ (line\ %l\/%L,\ col\ %c)\
 
-        autocmd User delimitMate_map   :call rust#delimitmate#onMap()
-        autocmd User delimitMate_unmap :call rust#delimitmate#onUnmap()
-    endif
+" Search mappings: These will make it so that going to the next one in a
+" search will center on the line it's found in.
+nnoremap n nzzzv
+nnoremap N Nzzzv
 
-    " Integration with auto-pairs (https://github.com/jiangmiao/auto-pairs)
-    if exists("g:AutoPairsLoaded") && !get(g:, 'rust_keep_autopairs_default', 0)
-        let b:AutoPairs = {'(':')', '[':']', '{':'}','"':'"', '`':'`'}
-    endif
+if exists("*fugitive#statusline")
+  set statusline+=%{fugitive#statusline()}
+endif
 
-    if has("folding") && get(g:, 'rust_fold', 0)
-        let b:rust_set_foldmethod=1
-        setlocal foldmethod=syntax
-        if g:rust_fold == 2
-            setlocal foldlevel<
-        else
-            setlocal foldlevel=99
-        endif
-    endif
+" vim-airline
+let g:airline_theme = 'powerlineish'
+let g:airline#extensions#branch#enabled = 1
+let g:airline#extensions#ale#enabled = 1
+let g:airline#extensions#tabline#enabled = 1
+let g:airline#extensions#tagbar#enabled = 1
+let g:airline_skip_empty_sections = 1
 
-    if has('conceal') && get(g:, 'rust_conceal', 0)
-        let b:rust_set_conceallevel=1
-        setlocal conceallevel=2
-    endif
+"*****************************************************************************
+"" Abbreviations
+"*****************************************************************************
+"" no one is really happy until you have this shortcuts
+cnoreabbrev W! w!
+cnoreabbrev Q! q!
+cnoreabbrev Qall! qall!
+cnoreabbrev Wq wq
+cnoreabbrev Wa wa
+cnoreabbrev wQ wq
+cnoreabbrev WQ wq
+cnoreabbrev W w
+cnoreabbrev Q q
+cnoreabbrev Qall qall
 
-    " Motion Commands {{{1
+"" NERDTree configuration
+let g:NERDTreeChDirMode=2
+let g:NERDTreeIgnore=['\.rbc$', '\~$', '\.pyc$', '\.db$', '\.sqlite$', '__pycache__']
+let g:NERDTreeSortOrder=['^__\.py$', '\/$', '*', '\.swp$', '\.bak$', '\~$']
+let g:NERDTreeShowBookmarks=1
+let g:nerdtree_tabs_focus_on_files=1
+let g:NERDTreeMapOpenInTabSilent = '<RightMouse>'
+let g:NERDTreeWinSize = 50
+set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc,*.db,*.sqlite
+nnoremap <silent> <F2> :NERDTreeFind<CR>
+nnoremap <silent> <F3> :NERDTreeToggle<CR>
 
-    " Bind motion commands to support hanging indents
-    nnoremap <silent> <buffer> [[ :call rust#Jump('n', 'Back')<CR>
-    nnoremap <silent> <buffer> ]] :call rust#Jump('n', 'Forward')<CR>
-    xnoremap <silent> <buffer> [[ :call rust#Jump('v', 'Back')<CR>
-    xnoremap <silent> <buffer> ]] :call rust#Jump('v', 'Forward')<CR>
-    onoremap <silent> <buffer> [[ :call rust#Jump('o', 'Back')<CR>
-    onoremap <silent> <buffer> ]] :call rust#Jump('o', 'Forward')<CR>
+" grep.vim
+nnoremap <silent> <leader>f :Rgrep<CR>
+let Grep_Default_Options = '-IR'
+let Grep_Skip_Files = '*.log *.db'
+let Grep_Skip_Dirs = '.git node_modules'
 
-    " Commands {{{1
+" terminal emulation
+nnoremap <silent> <leader>sh :terminal<CR>
 
-    " See |:RustRun| for docs
-    command! -nargs=* -complete=file -bang -buffer RustRun call rust#Run(<bang>0, <q-args>)
 
-    " See |:RustExpand| for docs
-    command! -nargs=* -complete=customlist,rust#CompleteExpand -bang -buffer RustExpand call rust#Expand(<bang>0, <q-args>)
+"*****************************************************************************
+"" Commands
+"*****************************************************************************
+" remove trailing whitespaces
+command! FixWhitespace :%s/\s\+$//e
 
-    " See |:RustEmitIr| for docs
-    command! -nargs=* -buffer RustEmitIr call rust#Emit("llvm-ir", <q-args>)
+"*****************************************************************************
+"" Functions
+"*****************************************************************************
+if !exists('*s:setupWrapping')
+  function s:setupWrapping()
+    set wrap
+    set wm=2
+    set textwidth=79
+  endfunction
+endif
 
-    " See |:RustEmitAsm| for docs
-    command! -nargs=* -buffer RustEmitAsm call rust#Emit("asm", <q-args>)
-
-    " See |:RustPlay| for docs
-    command! -range=% RustPlay :call rust#Play(<count>, <line1>, <line2>, <f-args>)
-
-    " See |:RustFmt| for docs
-    command! -buffer RustFmt call rustfmt#Format()
-
-    " See |:RustFmtRange| for docs
-    command! -range -buffer RustFmtRange call rustfmt#FormatRange(<line1>, <line2>)
-
-    " See |:RustInfo| for docs
-    command! -bar RustInfo call rust#debugging#Info()
-
-    " See |:RustInfoToClipboard| for docs
-    command! -bar RustInfoToClipboard call rust#debugging#InfoToClipboard()
-
-    " See |:RustInfoToFile| for docs
-    command! -bar -nargs=1 RustInfoToFile call rust#debugging#InfoToFile(<f-args>)
-
-    " See |:RustTest| for docs
-    command! -buffer -nargs=* -bang RustTest call rust#Test(<bang>0, <q-args>)
-
-    if !exists("b:rust_last_rustc_args") || !exists("b:rust_last_args")
-        let b:rust_last_rustc_args = []
-        let b:rust_last_args = []
-    endif
-
-    " Cleanup {{{1
-
-    let b:undo_ftplugin = "
-                \ setlocal formatoptions< comments< commentstring< includeexpr< suffixesadd<
-                \|if exists('b:rust_set_style')
-                    \|setlocal tabstop< shiftwidth< softtabstop< expandtab< textwidth<
-                    \|endif
-                    \|if exists('b:rust_original_delimitMate_excluded_regions')
-                        \|let b:delimitMate_excluded_regions = b:rust_original_delimitMate_excluded_regions
-                        \|unlet b:rust_original_delimitMate_excluded_regions
-                        \|else
-                            \|unlet! b:delimitMate_excluded_regions
-                            \|endif
-                            \|if exists('b:rust_set_foldmethod')
-                                \|setlocal foldmethod< foldlevel<
-                                \|unlet b:rust_set_foldmethod
-                                \|endif
-                                \|if exists('b:rust_set_conceallevel')
-                                    \|setlocal conceallevel<
-                                    \|unlet b:rust_set_conceallevel
-                                    \|endif
-                                    \|unlet! b:rust_last_rustc_args b:rust_last_args
-                                    \|delcommand RustRun
-                                    \|delcommand RustExpand
-                                    \|delcommand RustEmitIr
-                                    \|delcommand RustEmitAsm
-                                    \|delcommand RustPlay
-                                    \|nunmap <buffer> [[
-                                    \|nunmap <buffer> ]]
-                                    \|xunmap <buffer> [[
-                                    \|xunmap <buffer> ]]
-                                    \|ounmap <buffer> [[
-                                    \|ounmap <buffer> ]]
-                                    \|setlocal matchpairs-=<:>
-                                    \|unlet b:match_skip
-                                    \"
-
-    " }}}1
-
-    " Code formatting on save
-    autocmd BufWritePre <buffer> silent! call rustfmt#PreWrite()
-
+"*****************************************************************************
+"" Autocmd Rules
+"*****************************************************************************
+"" The PC is fast enough, do syntax highlight syncing from start unless 200 lines
+augroup vimrc-sync-fromstart
+  autocmd!
+  autocmd BufEnter * :syntax sync maxlines=200
 augroup END
 
-setlocal matchpairs+=<:>
-" For matchit.vim (rustArrow stops `Fn() -> X` messing things up)
-let b:match_skip = 's:comment\|string\|rustArrow'
+"" Remember cursor position
+augroup vimrc-remember-cursor-position
+  autocmd!
+  autocmd BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g`\"" | endif
+augroup END
 
-" vint: -ProhibitAbbreviationOption
-let &cpo = s:save_cpo
-unlet s:save_cpo
-" vint: +ProhibitAbbreviationOption
+"" txt
+augroup vimrc-wrapping
+  autocmd!
+  autocmd BufRead,BufNewFile *.txt call s:setupWrapping()
+augroup END
 
-" vim: set et sw=4 sts=4 ts=8:
+"" make/cmake
+augroup vimrc-make-cmake
+  autocmd!
+  autocmd FileType make setlocal noexpandtab
+  autocmd BufNewFile,BufRead CMakeLists.txt setlocal filetype=cmake
+augroup END
+
+set autoread
+
+"*****************************************************************************
+"" Mappings
+"*****************************************************************************
+
+"" Split
+noremap <Leader>h :<C-u>split<CR>
+noremap <Leader>v :<C-u>vsplit<CR>
+
+"" Git
+noremap <Leader>ga :Gwrite<CR>
+noremap <Leader>gc :Gcommit<CR>
+noremap <Leader>gsh :Gpush<CR>
+noremap <Leader>gll :Gpull<CR>
+noremap <Leader>gs :Gstatus<CR>
+noremap <Leader>gb :Gblame<CR>
+noremap <Leader>gd :Gvdiff<CR>
+noremap <Leader>gr :Gremove<CR>
+
+" session management
+nnoremap <leader>so :OpenSession<Space>
+nnoremap <leader>ss :SaveSession<Space>
+nnoremap <leader>sd :DeleteSession<CR>
+nnoremap <leader>sc :CloseSession<CR>
+
+"" Tabs
+nnoremap <Tab> gt
+nnoremap <S-Tab> gT
+nnoremap <silent> <S-t> :tabnew<CR>
+
+"" Set working directory
+nnoremap <leader>. :lcd %:p:h<CR>
+
+"" Opens an edit command with the path of the currently edited file filled in
+noremap <Leader>e :e <C-R>=expand("%:p:h") . "/" <CR>
+
+"" Opens a tab edit command with the path of the currently edited file filled
+noremap <Leader>te :tabe <C-R>=expand("%:p:h") . "/" <CR>
+
+"" fzf.vim
+set wildmode=list:longest,list:full
+set wildignore+=*.o,*.obj,.git,*.rbc,*.pyc,__pycache__
+let $FZF_DEFAULT_COMMAND =  "find * -path '*/\.*' -prune -o -path 'node_modules/**' -prune -o -path 'target/**' -prune -o -path 'dist/**' -prune -o  -type f -print -o -type l -print 2> /dev/null"
+
+" The Silver Searcher
+if executable('ag')
+  let $FZF_DEFAULT_COMMAND = 'ag --hidden --ignore .git -g ""'
+  set grepprg=ag\ --nogroup\ --nocolor
+endif
+
+" ripgrep
+if executable('rg')
+  let $FZF_DEFAULT_COMMAND = 'rg --files --hidden --follow --glob "!.git/*"'
+  set grepprg=rg\ --vimgrep
+  command! -bang -nargs=* Find call fzf#vim#grep('rg --column --line-number --no-heading --fixed-strings --ignore-case --hidden --follow --glob "!.git/*" --color "always" '.shellescape(<q-args>).'| tr -d "\017"', 1, <bang>0)
+endif
+
+cnoremap <C-P> <C-R>=expand("%:p:h") . "/" <CR>
+nnoremap <silent> <leader>b :Buffers<CR>
+nnoremap <silent> <leader>e :FZF -m<CR>
+"Recovery commands from history through FZF
+nmap <leader>y :History:<CR>
+
+" snippets
+let g:UltiSnipsExpandTrigger="<tab>"
+let g:UltiSnipsJumpForwardTrigger="<tab>"
+let g:UltiSnipsJumpBackwardTrigger="<c-b>"
+let g:UltiSnipsEditSplit="vertical"
+
+" ale
+let g:ale_linters = {}
+
+" Tagbar
+nmap <silent> <F4> :TagbarToggle<CR>
+let g:tagbar_autofocus = 1
+
+" Disable visualbell
+set noerrorbells visualbell t_vb=
+if has('autocmd')
+  autocmd GUIEnter * set visualbell t_vb=
+endif
+
+"" Copy/Paste/Cut
+if has('unnamedplus')
+  set clipboard=unnamed,unnamedplus
+endif
+
+noremap YY "+y<CR>
+noremap <leader>p "+gP<CR>
+noremap XX "+x<CR>
+
+if has('macunix')
+  " pbcopy for OSX copy/paste
+  vmap <C-x> :!pbcopy<CR>
+  vmap <C-c> :w !pbcopy<CR><CR>
+endif
+
+"" Buffer nav
+noremap <leader>z :bp<CR>
+noremap <leader>q :bp<CR>
+noremap <leader>x :bn<CR>
+noremap <leader>w :bn<CR>
+
+"" Close buffer
+noremap <leader>c :bd<CR>
+
+"" Clean search (highlight)
+nnoremap <silent> <leader><space> :noh<cr>
+
+"" Switching windows
+noremap <C-j> <C-w>j
+noremap <C-k> <C-w>k
+noremap <C-l> <C-w>l
+noremap <C-h> <C-w>h
+
+"" Vmap for maintain Visual Mode after shifting > and <
+vmap < <gv
+vmap > >gv
+
+"" Move visual block
+vnoremap J :m '>+1<CR>gv=gv
+vnoremap K :m '<-2<CR>gv=gv
+
+"" Open current line on GitHub
+nnoremap <Leader>o :.Gbrowse<CR>
+
+"*****************************************************************************
+"" Custom configs
+"*****************************************************************************
+
+
+"*****************************************************************************
+"*****************************************************************************
+
+"" Include user's local vim config
+if filereadable(expand("~/.vimrc.local"))
+  source ~/.vimrc.local
+endif
+
+"*****************************************************************************
+"" Convenience variables
+"*****************************************************************************
+
+" vim-airline
+if !exists('g:airline_symbols')
+  let g:airline_symbols = {}
+endif
+
+if !exists('g:airline_powerline_fonts')
+  let g:airline#extensions#tabline#left_sep = ' '
+  let g:airline#extensions#tabline#left_alt_sep = '|'
+  let g:airline_left_sep          = '▶'
+  let g:airline_left_alt_sep      = '»'
+  let g:airline_right_sep         = '◀'
+  let g:airline_right_alt_sep     = '«'
+  let g:airline#extensions#branch#prefix     = '⤴' "➔, ➥, ⎇
+  let g:airline#extensions#readonly#symbol   = '⊘'
+  let g:airline#extensions#linecolumn#prefix = '¶'
+  let g:airline#extensions#paste#symbol      = 'ρ'
+  let g:airline_symbols.linenr    = '␊'
+  let g:airline_symbols.branch    = '⎇'
+  let g:airline_symbols.paste     = 'ρ'
+  let g:airline_symbols.paste     = 'Þ'
+  let g:airline_symbols.paste     = '∥'
+  let g:airline_symbols.whitespace = 'Ξ'
+else
+  let g:airline#extensions#tabline#left_sep = ''
+  let g:airline#extensions#tabline#left_alt_sep = ''
+
+  " powerline symbols
+  let g:airline_left_sep = ''
+  let g:airline_left_alt_sep = ''
+  let g:airline_right_sep = ''
+  let g:airline_right_alt_sep = ''
+  let g:airline_symbols.branch = ''
+  let g:airline_symbols.readonly = ''
+  let g:airline_symbols.linenr = ''
+endif
